@@ -6,5 +6,5 @@ const url = process.env.DIRECT_DATABASE_URL ?? process.env.DATABASE_URL_UNPOOLED
 if (!url) {
   console.warn("⚠ No database URL set: skipping migrations. Connect Neon in Vercel → Storage, then redeploy.");
 } else {
-  execSync("prisma migrate deploy", { stdio: "inherit" });
+  execSync("npx prisma migrate deploy", { stdio: "inherit" });
 }
