@@ -1,0 +1,162 @@
+// Prisma 7: connection URLs live in prisma.config.ts (migrations) and
+// src/lib/db.ts (runtime, through the Neon driver adapter).
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Parent {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  fcmTokens String[] // התראות לנייד של ההורה
+  children  Child[]
+  createdAt DateTime @default(now())
+}
+
+model Child {
+  id         String            @id @default(cuid())
+  parentId   String
+  parent     Parent            @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  name       String
+  birthYear  Int
+  ruleSet    RuleSet?
+  devices    Device[]
+  requests   ApprovalRequest[]
+  events     WatchEvent[]
+  overrides  VideoOverride[]
+  videoLists VideoList[]
+  createdAt  DateTime          @default(now())
+
+  @@index([parentId])
+}
+
+model Device {
+  id               String    @id @default(cuid())
+  childId          String
+  child            Child     @relation(fields: [childId], references: [id], onDelete: Cascade)
+  pairingCode      String?   @unique // 6 ספרות, בתוקף 10 דקות
+  pairingExpiresAt DateTime?
+  deviceTokenHash  String?   @unique // sha256 של הסוד שהמכשיר מקבל בצימוד
+  fcmToken         String?
+  isDeviceOwner    Boolean   @default(false)
+  pairedAt         DateTime?
+  lastSeenAt       DateTime?
+  createdAt        DateTime  @default(now())
+}
+
+model RuleSet {
+  id              String   @id @default(cuid())
+  childId         String   @unique
+  child           Child    @relation(fields: [childId], references: [id], onDelete: Cascade)
+  maxAgeRating    Int      @default(7) // גיל מקסימלי לתוכן
+  blockedTopics   String[] @default(["violence", "scary", "sexual", "drugs", "gambling", "dangerous_challenges"])
+  blockedKeywords String[]
+  allowedChannels String[] // YouTube channelId
+  blockedChannels String[]
+  allowlistOnly   Boolean  @default(false) // רק ערוצים מורשים
+  listOnly        Boolean  @default(false) // צפייה רק מרשימות מאושרות מראש
+  dailyMinutes    Int?
+  updatedAt       DateTime @updatedAt
+}
+
+model VideoClassification {
+  videoId      String   @id // YouTube video id
+  channelId    String
+  title        String
+  topics       String[]
+  ageRating    Int
+  language     String?
+  confidence   Float
+  modelVer     String
+  classifiedAt DateTime @default(now())
+}
+
+model VideoOverride {
+  childId   String
+  child     Child    @relation(fields: [childId], references: [id], onDelete: Cascade)
+  videoId   String
+  allowed   Boolean
+  createdAt DateTime @default(now())
+
+  @@id([childId, videoId])
+}
+
+model VideoList {
+  id               String          @id @default(cuid())
+  childId          String
+  child            Child           @relation(fields: [childId], references: [id], onDelete: Cascade)
+  name             String // למשל "לפני השינה", "אנגלית"
+  isActive         Boolean         @default(true)
+  sourcePlaylistId String? // אם יובאה מפלייליסט YouTube
+  items            VideoListItem[]
+  createdAt        DateTime        @default(now())
+
+  @@index([childId, isActive])
+}
+
+model VideoListItem {
+  listId    String
+  list      VideoList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  videoId   String
+  title     String
+  thumbnail String?
+  position  Int // סדר הניגון
+  addedAt   DateTime  @default(now())
+
+  @@id([listId, videoId])
+  @@index([videoId])
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  DENIED
+  EXPIRED
+}
+
+model ApprovalRequest {
+  id        String        @id @default(cuid())
+  childId   String
+  child     Child         @relation(fields: [childId], references: [id], onDelete: Cascade)
+  videoId   String
+  title     String
+  channelId String
+  thumbnail String?
+  reason    String // למה נחסם (קוד מ-REASONS)
+  status    RequestStatus @default(PENDING)
+  createdAt DateTime      @default(now())
+  decidedAt DateTime?
+
+  @@index([childId, status])
+}
+
+enum WatchDecision {
+  ALLOWED
+  BLOCKED
+  NEEDS_APPROVAL
+}
+
+enum EventKind {
+  CHECK // בדיקה לפני ניגון
+  WATCH // דיווח זמן צפייה
+  BYPASS_ATTEMPT // ניסיון עקיפה
+}
+
+model WatchEvent {
+  id        String         @id @default(cuid())
+  childId   String
+  child     Child          @relation(fields: [childId], references: [id], onDelete: Cascade)
+  kind      EventKind      @default(CHECK)
+  videoId   String?
+  decision  WatchDecision?
+  reason    String?
+  seconds   Int            @default(0)
+  createdAt DateTime       @default(now())
+
+  @@index([childId, createdAt])
+}
