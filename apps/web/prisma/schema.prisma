@@ -12,7 +12,8 @@ datasource db {
 model Parent {
   id        String   @id @default(cuid())
   email     String   @unique
-  name      String?
+  name         String?
+  passwordHash String? // scrypt; null when signing in with Google only
   fcmTokens String[] // התראות לנייד של ההורה
   children  Child[]
   createdAt DateTime @default(now())

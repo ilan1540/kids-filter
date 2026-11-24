@@ -69,8 +69,40 @@ function toMeta(v: VideoItem): FullVideoMeta {
   };
 }
 
-/** videos.list: 1 quota unit for up to 50 ids. */
+/**
+ * Without an API key we fall back to oEmbed: title and thumbnail only, no quota.
+ * oEmbed answers 401/403 for videos that can't be embedded and 404 for missing ones.
+ */
+async function fetchOEmbed(id: string): Promise<FullVideoMeta | null> {
+  const watch = `https://www.youtube.com/watch?v=${id}`;
+  const res = await fetch(`https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(watch)}`, {
+    next: { revalidate: 86400 },
+  });
+  if (!res.ok) return null;
+  const o = (await res.json()) as { title: string; author_name: string; author_url: string };
+  return {
+    videoId: id,
+    channelId: o.author_url,
+    channelTitle: o.author_name,
+    title: o.title,
+    description: "",
+    tags: [],
+    categoryId: null,
+    thumbnail: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
+    embeddable: true,
+    madeForKids: null,
+    defaultLanguage: null,
+  };
+}
+
+export const hasApiKey = () => !!process.env.YOUTUBE_API_KEY;
+
+/** videos.list: 1 quota unit for up to 50 ids. Falls back to oEmbed when there is no API key. */
 export async function fetchVideosMeta(ids: string[]): Promise<FullVideoMeta[]> {
+  if (!hasApiKey()) {
+    const metas = await Promise.all(ids.map(fetchOEmbed));
+    return metas.filter((m): m is FullVideoMeta => !!m);
+  }
   const out: FullVideoMeta[] = [];
   for (let i = 0; i < ids.length; i += 50) {
     const chunk = ids.slice(i, i + 50);

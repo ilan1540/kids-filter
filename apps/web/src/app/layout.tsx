@@ -1,11 +1,18 @@
+import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
+import "./globals.css";
 
-export const metadata = { title: "סינון תכנים לילדים", description: "דשבורד הורים" };
+export const metadata: Metadata = {
+  title: "סינון תכנים לילדים",
+  description: "ההורה בוחר סרטונים, הילד צופה רק בהם",
+};
+
+export const viewport: Viewport = { width: "device-width", initialScale: 1 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="he" dir="rtl">
-      <body style={{ fontFamily: "system-ui, sans-serif", margin: 0, padding: 24 }}>{children}</body>
+      <body>{children}</body>
     </html>
   );
 }
