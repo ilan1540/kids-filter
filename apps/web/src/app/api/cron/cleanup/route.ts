@@ -1,14 +1,13 @@
 import { db } from "@/lib/db";
 import { push } from "@/lib/push";
 
-const HOUR = 60 * 60 * 1000;
-const DAY = 24 * HOUR;
+const DAY = 24 * 60 * 60 * 1000;
 
 /**
- * Runs every 15 minutes (vercel.json):
+ * Runs once a day at 03:00 UTC (vercel.json; Vercel Hobby allows only daily crons):
  * - expires approval requests older than 24h
  * - deletes watch history older than 90 days (privacy)
- * - alerts the parent once when a paired device has been silent for over an hour
+ * - alerts the parent once when a paired device has been silent for over a day
  */
 export async function GET(req: Request) {
   if (req.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -23,9 +22,9 @@ export async function GET(req: Request) {
     db.watchEvent.deleteMany({ where: { createdAt: { lt: new Date(now - 90 * DAY) } } }),
   ]);
 
-  // Silent between 60 and 75 minutes: with a 15-minute cron, each silence alerts exactly once.
+  // Silent between 24 and 48 hours: with a daily cron, each silence alerts exactly once.
   const silent = await db.device.findMany({
-    where: { pairedAt: { not: null }, lastSeenAt: { lt: new Date(now - HOUR), gte: new Date(now - HOUR - 15 * 60 * 1000) } },
+    where: { pairedAt: { not: null }, lastSeenAt: { lt: new Date(now - DAY), gte: new Date(now - 2 * DAY) } },
     include: { child: { include: { parent: { select: { fcmTokens: true } } } } },
   });
   for (const d of silent) {
